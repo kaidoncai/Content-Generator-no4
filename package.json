@@ -9,6 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@types/dotenv": "^6.1.1",
+    "dotenv": "^16.4.5",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.5",
     "next": "15.0.3",
     "openai": "^4.73.1",
     "react": "19.0.0-rc-66855b96-20241106",

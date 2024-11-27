@@ -1,78 +1,68 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 
-// 初始化 OpenAI 客户端
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-export async function POST(req: Request) {
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json(
-      { error: '未配置 OpenAI API 密钥' },
-      { status: 500 }
-    );
-  }
-
+export async function POST(request: Request) {
   try {
-    const { prompt, type = 'general' } = await req.json();
+    const { prompt, type } = await request.json();
 
-    if (!prompt) {
-      return NextResponse.json(
-        { error: '请提供提示词' },
-        { status: 400 }
-      );
-    }
-
-    // 根据不同类型设置不同的系统提示词
-    let systemPrompt = '你是一个有帮助的助手。';
-    switch (type) {
+    // 根据不同类型构建不同的提示词前缀
+    let systemPrompt = '';
+    switch(type) {
       case 'article':
-        systemPrompt = '你是一个专业的文章写手，擅长创作高质量的文章内容。';
+        systemPrompt = '请帮我写一篇文章，要求：\n';
         break;
       case 'marketing':
-        systemPrompt = '你是一个营销专家，擅长编写吸引人的营销文案。';
+        systemPrompt = '请帮我写一段营销文案，要求：\n';
         break;
       case 'social':
-        systemPrompt = '你是一个社交媒体内容创作者，擅长编写有趣且引人入胜的帖子。';
+        systemPrompt = '请帮我写一段社交媒体内容，要求：\n';
         break;
+      default:
+        systemPrompt = '请根据以下要求生成内容：\n';
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 1000,
-    });
-
-    const content = completion.choices[0].message.content;
-
-    if (!content) {
-      throw new Error('生成的内容为空');
-    }
-
-    return NextResponse.json({ 
-      content,
-      type,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error: any) {
-    console.error('生成错误:', error);
-    return NextResponse.json(
-      { 
-        error: error.message || '内容生成失败',
-        details: process.env.NODE_ENV === 'development' ? error.toString() : undefined
+    const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.SILICONFLOW_API_KEY}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        model: 'deepseek-ai/DeepSeek-V2.5',
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        stream: false,
+        max_tokens: 2000,
+        temperature: 0.7,
+        top_p: 0.9,
+        frequency_penalty: 0.5,
+        presence_penalty: 0.5,
+        response_format: {
+          type: "text"
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API请求失败: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    
+    return NextResponse.json({ content });
+    
+  } catch (error: any) {
+    console.error('API 错误:', error);
+    return NextResponse.json(
+      { error: error.message || '生成失败，请稍后重试' },
       { status: 500 }
     );
   }
